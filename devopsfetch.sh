@@ -85,17 +85,50 @@ fetch_nginx_config() {
 
 # Function to fetch and display user login sessions
 fetch_user_sessions() {
-    echo "+----------+----------+-----------+------------------+-----------------+"
-    echo "| Username | Terminal | Host      | Login Time       | Session Duration|"
-    echo "+----------+----------+-----------+------------------+-----------------+"
-    
-    who --time-format long | awk '{print $1, $2, $5, $4, $6}' | while read -r username terminal host logintime; do
-        duration=$(ps -p $(pgrep -u "$username") -o etime= | awk '{sum += $1} END {print sum}')
-        printf "| %-8s | %-8s | %-9s | %-16s | %-15s |\n" "$username" "$terminal" "$host" "$logintime" "$duration"
-    done
+  echo "+----------+----------+-----------+------------------+-----------------+"
+  echo "| Username | Terminal | Host   | Login Time    | Session Duration|"
+  echo "+----------+----------+-----------+------------------+-----------------+"
 
-    echo "+----------+----------+-----------+------------------+-----------------+"
+  # Loop through logged-in users
+  who | awk '{print $1}' while read -r username; do
+    # Get processes for the user using ps -U
+    user_processes=$(ps -U "$username" -o etime=)
+
+    # Check if there are any processes for the user
+    if [[ -z "$user_processes" ]]; then
+      printf "| %-8s | %-8s | %-9s | %-16s | %-15s |\n" "$username" "-" "-" "-" "-"
+      continue
+    fi
+
+    # Calculate total uptime for user processes
+    total_uptime=$(echo "$user_processes" | awk '{sum += $1} END {print sum}')
+
+    # Format and print user information with session duration
+    printf "| %-8s | %-8s | %-9s | %-16s | %-15s |\n" "$username" "-" "-" "$(who | grep "$username" | awk '{print $4, $3}')" "$(human_readable_time $total_uptime)"
+  done
+
+  echo "+----------+----------+-----------+------------------+-----------------+"
 }
+
+# Function to convert seconds to human-readable format (optional)
+human_readable_time() {
+  seconds=$1
+  minutes=$((seconds / 60))
+  hours=$((minutes / 60))
+  days=$((hours / 24))
+  minutes=$((minutes % 60))
+  hours=$((hours % 24))
+  seconds=$((seconds % 60))
+
+  if [[ $days -gt 0 ]]; then
+    printf "%dd %dh %dm\n" "$days" "$hours" "$minutes"
+  elif [[ $hours -gt 0 ]]; then
+    printf "%dh %dm %ds\n" "$hours" "$minutes" "$seconds"
+  else
+    printf "%dm %ds\n" "$minutes" "$seconds"
+  fi
+}
+
 
 # Function to fetch and display system logs for a specific date
 fetch_logs_by_date() {
